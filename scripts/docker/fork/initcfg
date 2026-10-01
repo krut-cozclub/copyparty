@@ -1,0 +1,9 @@
+# default config for the copyparty-fork docker image;
+# put your own *.conf files into the /cfg volume
+
+[global]
+  chdir: /w
+  no-crt
+  wcmd-dir: /cfg/wcmd
+
+% /cfg

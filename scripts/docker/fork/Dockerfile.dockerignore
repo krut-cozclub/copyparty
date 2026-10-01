@@ -1,0 +1,8 @@
+*
+!copyparty
+!scripts/docker/fork
+!bin/u2c.py
+!bin/partyfuse.py
+!contrib/webdav-cfg.bat
+**/__pycache__
+**/*.pyc
