@@ -20,15 +20,25 @@ RUN     ver="${CPP_VER:-$(awk -F'[(,) ]+' '/^VERSION *=/{print $2"."$3"."$4;exit
 
 FROM    alpine:3.22
 LABEL   org.opencontainers.image.title="copyparty-fork" \
-        org.opencontainers.image.description="copyparty with server-side unzip and web-commands (tmux / aria2 / 7z)" \
+        org.opencontainers.image.description="copyparty with server-side unzip and web-commands (tmux / aria2 / 7z / yt-dlp)" \
         org.opencontainers.image.licenses="MIT"
 ENV     XDG_CONFIG_HOME=/cfg \
         PYTHONPATH=/opt/cpp \
         PYTHONDONTWRITEBYTECODE=1
 
+# ffmpeg is used by yt-dlp to merge video+audio, and by copyparty for video thumbnails
 RUN     apk --no-cache add \
             python3 py3-jinja2 py3-pillow \
-            tmux aria2 7zip unzip tini
+            tmux aria2 7zip unzip tini ffmpeg ca-certificates quickjs
+
+# the alpine yt-dlp package lags behind, and yt-dlp must be recent to keep
+# working with most sites; this is the official release, which can also
+# update itself in a running container with "yt-dlp -U".
+# youtube needs a javascript runtime; quickjs is tiny compared to deno
+ADD     https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp /usr/local/bin/yt-dlp
+RUN     chmod 755 /usr/local/bin/yt-dlp \
+        && echo "--js-runtimes quickjs" > /etc/yt-dlp.conf \
+        && yt-dlp --version
 
 COPY    copyparty /opt/cpp/copyparty
 # web/a/* are symlinks in git; replace them with the real files

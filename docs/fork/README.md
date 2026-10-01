@@ -4,7 +4,7 @@ this fork adds two features to copyparty; neither is in upstream
 
 * [unzip](#unzip) -- extract zip/tar archives on the server, from the web-ui
 * [web-commands](#web-commands) -- run admin-defined commands (aria2c, 7z, yt-dlp, ...) from the web-ui, in tmux
-* [docker image](#docker-image) -- with tmux, aria2, 7zip and unzip preinstalled
+* [docker image](#docker-image) -- with tmux, aria2, 7zip, unzip, yt-dlp and ffmpeg preinstalled
 
 > **NOTE:** this code was written with an AI assistant, so it must not be submitted upstream; the copyparty [CONTRIBUTING.md](../../CONTRIBUTING.md) does not accept AI-written code. See [upstream-feature-request.md](upstream-feature-request.md) for a draft feature-request instead.
 
@@ -44,13 +44,16 @@ copyparty -a admin:hunter2 -v /srv/files::A,admin \
   --wcmd 'ytdl=yt-dlp -P {dir} -- {arg}'
 ```
 
-or in a config file:
+or in a config file (`copyparty -c my.conf`, or any `*.conf` in the `/cfg` folder of the docker image); one `wcmd:` line per command, and the other `--wcmd-*` options work the same way (`wcmd-maxj: 2`):
 
 ```yaml
 [global]
   wcmd: dl=aria2c --dir={dir} -- {arg}
+  wcmd: ytdl=yt-dlp --no-progress -P {dir} -- {arg}
   wcmd: 7z=7z x -y -o{dst} -- {src}
 ```
+
+a complete example is [scripts/docker/fork/example.conf](../../scripts/docker/fork/example.conf); commands from `--wcmd` arguments and config files are combined. Changes need a restart (not just a config reload)
 
 variables which can be used in a command:
 
@@ -85,7 +88,9 @@ other options: `--wcmd-dir` (where logs are kept), `--wcmd-nkeep` (how many fini
 
 ## docker image
 
-the image is built from this source tree by [scripts/docker/fork/Dockerfile](../../scripts/docker/fork/Dockerfile), and includes `tmux`, `aria2c`, `7z`, `unzip` and pillow (image thumbnails)
+the image is built from this source tree by [scripts/docker/fork/Dockerfile](../../scripts/docker/fork/Dockerfile), and includes `tmux`, `aria2c`, `7z`, `unzip`, `yt-dlp` (latest release at build time, with the quickjs javascript-runtime for youtube), `ffmpeg` (yt-dlp needs it to merge video+audio; also gives copyparty video thumbnails), and pillow (image thumbnails)
+
+yt-dlp breaks when sites change; update it inside a running container with `docker exec CONTAINER yt-dlp -U` (lost when the container is recreated), or add a command for it: `wcmd: ytdl-update=yt-dlp -U`
 
 pull it (amd64 and arm64; built by [.github/workflows/fork-docker.yml](../../.github/workflows/fork-docker.yml) for each release):
 
@@ -108,7 +113,16 @@ or build it yourself:
 docker build -t copyparty-fork -f scripts/docker/fork/Dockerfile .
 ```
 
-run it; the folder you want to share goes into `/w`, and config/state goes into `/cfg`:
+run it; the folder you want to share goes into `/w`, and config/state goes into `/cfg`. The easiest is to copy [example.conf](../../scripts/docker/fork/example.conf) into your config folder, change the password, and run:
+
+```bash
+docker run --rm -it -p 3923:3923 \
+  -v /path/to/your/files:/w \
+  -v /path/to/config:/cfg \
+  copyparty-fork
+```
+
+or without a config file, everything as arguments:
 
 ```bash
 docker run --rm -it -p 3923:3923 \
@@ -123,7 +137,7 @@ docker run --rm -it -p 3923:3923 \
 then open http://127.0.0.1:3923/, log in with the password, and
 
 * upload a zip, select it, click 🗜 `unzip`
-* click the `>_` tab, pick `dl`, paste a URL, click run
+* click the `>_` tab, pick `dl` or `ytdl`, paste a URL, click run
 
 attach to a running job with `docker exec -it CONTAINER tmux attach -t cpp-JOBID`
 
