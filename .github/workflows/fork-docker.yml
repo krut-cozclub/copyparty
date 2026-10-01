@@ -1,0 +1,68 @@
+# fork-only: build the copyparty-fork docker image (scripts/docker/fork)
+# for amd64 + arm64 when a release is published; pushes it to ghcr.io
+# and attaches `docker load`-able tarballs to the release
+
+name: fork-docker
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "release tag to build and attach images to"
+        required: true
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: image name
+        run: echo "IMG=ghcr.io/$(echo '${{ github.repository_owner }}' | tr A-Z a-z)/copyparty-fork" >> "$GITHUB_ENV"
+
+      - name: build and push (multi-arch)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: scripts/docker/fork/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ env.IMG }}:${{ env.TAG }}
+            ${{ env.IMG }}:latest
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+
+      - name: tarballs for the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -ex
+          for arch in amd64 arm64; do
+            docker buildx build --platform linux/$arch \
+              -f scripts/docker/fork/Dockerfile \
+              -t copyparty-fork:$TAG \
+              -o type=docker,dest=copyparty-fork-$arch.tar .
+            gzip -9 copyparty-fork-$arch.tar
+          done
+          sha256sum copyparty-fork-*.tar.gz > copyparty-fork-sha256.txt
+          gh release upload "$TAG" copyparty-fork-*.tar.gz copyparty-fork-sha256.txt --clobber
