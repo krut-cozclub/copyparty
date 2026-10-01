@@ -1901,6 +1901,37 @@ html.y #tree.nowrap .ntree a+a:hover {
 	margin: 0;
 	padding: 0;
 }
+#op_wcmd {
+	padding: 1em;
+}
+#op_wcmd>div {
+	display: block;
+	border: none;
+	margin: 0;
+	padding: 0;
+}
+#op_wcmd input[type=text] {
+	width: min(40em, 90%);
+}
+#wcmd_argv {
+	opacity: .7;
+}
+#wcmd_jobs td {
+	padding: .2em .5em;
+}
+#wcmd_jobs tr.act {
+	background: var(--bg-u3);
+}
+#wcmd_log {
+	max-height: 30em;
+	overflow: auto;
+	white-space: pre-wrap;
+	word-break: break-all;
+	margin-top: 1em;
+}
+#wcmd_log:empty {
+	display: none;
+}
 #unpost td:nth-child(3),
 #unpost td:nth-child(4) {
 	text-align: right;

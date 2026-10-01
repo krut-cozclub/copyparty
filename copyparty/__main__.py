@@ -1009,6 +1009,40 @@ def get_sects():
             ),
         ],
         [
+            "wcmd",
+            "run predefined commands from the web-ui",
+            dedent(
+                """
+            the \033[33m--wcmd\033[0m option defines commands which can be started
+            from the web-ui (the \033[36m>_\033[0m tab), by users with the admin-permission
+            ("a") in the folder they are browsing
+
+            the command is NOT executed by a shell; it is split into arguments
+            like a shell would, and each argument can contain these variables:
+
+             \033[36m{dir}\033[35m  the folder the user is in (needs write-access); also the cwd
+             \033[36m{src}\033[35m  a file the user selected (needs read-access)
+             \033[36m{dst}\033[35m  a destination folder the user typed (needs write-access)
+             \033[36m{arg}\033[35m  free text, for example a URL; cannot start with a dash
+            \033[0m
+            a variable always stays within one argument, so a malicious
+            {arg} cannot add more arguments or run other commands; still,
+            put \033[33m--\033[0m before {arg} if the program supports it
+
+            if tmux 3.0+ is available, each command runs in a detached tmux
+            session named cpp-JOBID, which you can attach to on the server:
+             \033[36mtmux attach -t cpp-JOBID\033[0m
+            otherwise it runs as a plain background process
+
+            examples:
+             \033[36m--wcmd 'dl=aria2c --dir={dir} -- {arg}'\033[0m
+             \033[36m--wcmd 'ytdl=yt-dlp -P {dir} -- {arg}'\033[0m
+             \033[36m--wcmd '7z=7z x -y -o{dst} -- {src}'\033[0m
+             \033[36m--wcmd 'unrar=unrar x -o- -- {src} {dst}/'\033[0m
+            """
+            ),
+        ],
+        [
             "hooks",
             "execute commands before/after various events",
             dedent(
@@ -1805,6 +1839,22 @@ def add_hooks(ap):
     ap2.add_argument("--hook-v", action="store_true", help="verbose hooks")
 
 
+def add_unzip(ap):
+    ap2 = ap.add_argument_group("archive extraction (unzip) options")
+    ap2.add_argument("--no-unzip", action="store_true", help="disable extracting zip/tar archives on the server; extraction requires read-access to the archive and write-access to the destination, and \033[33m?replace\033[0m also requires delete-access")
+    ap2.add_argument("--unzip-maxn", metavar="N", type=u, default="64k", help="refuse to extract archives with more than \033[33mN\033[0m files; [\033[32m0\033[0m]=unlimited; optionally takes a unit suffix: [\033[32m256\033[0m], [\033[32m9k\033[0m]")
+    ap2.add_argument("--unzip-maxs", metavar="SZ", type=u, default="32g", help="refuse to extract archives which would become larger than \033[33mSZ\033[0m bytes; protects against zip-bombs; [\033[32m0\033[0m]=unlimited; optionally takes a unit suffix: [\033[32m256m\033[0m], [\033[32m4g\033[0m]")
+
+
+def add_wcmd(ap):
+    ap2 = ap.add_argument_group("web-commands; let admins run predefined commands from the web-ui (see --help-wcmd)")
+    ap2.add_argument("--wcmd", metavar="N=CMD", type=u, action="append", help="\033[34mREPEATABLE:\033[0m define a command named \033[33mN\033[0m which runs \033[33mCMD\033[0m; example: [\033[32mdl=aria2c -d {dir} -- {arg}\033[0m]")
+    ap2.add_argument("--wcmd-tmux", metavar="Y/N", type=u, default="auto", choices=["auto", "y", "n"], help="run commands inside detached tmux sessions so they survive restarts and can be attached to; [\033[32mauto\033[0m]=if tmux 3.0+ is available, [\033[32my\033[0m]=required, [\033[32mn\033[0m]=never")
+    ap2.add_argument("--wcmd-dir", metavar="PATH", type=u, default="", help="where to keep logs and state for web-commands; default is a subfolder of the copyparty config-dir")
+    ap2.add_argument("--wcmd-maxj", metavar="N", type=int, default=4, help="max number of web-commands running at the same time")
+    ap2.add_argument("--wcmd-nkeep", metavar="N", type=int, default=50, help="remember the logs of this many finished commands")
+
+
 def add_stats(ap):
     ap2 = ap.add_argument_group("grafana/prometheus metrics endpoint")
     ap2.add_argument("--stats", action="store_true", help="enable openmetrics at /.cpr/metrics for admin accounts")
@@ -2325,6 +2375,8 @@ def run_argparse(
     add_yolo(ap)
     add_handlers(ap)
     add_hooks(ap)
+    add_unzip(ap)
+    add_wcmd(ap)
     add_stats(ap)
     add_txt(ap)
     add_tail(ap)

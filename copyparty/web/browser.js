@@ -130,6 +130,7 @@ if (1)
 		"ot_msg": "msg: send a message to the server log",
 		"ot_mp": "media player options",
 		"ot_cfg": "configuration options",
+		"ot_wcmd": "run server commands (downloads, extractors, ...) which the server admin has configured",
 		"ot_u2i": 'up2k: upload files (if you have write-access) or toggle into the search-mode to see if they exist somewhere on the server$N$Nuploads are resumable, multithreaded, and file timestamps are preserved, but it uses more CPU than [🎈]&nbsp; (the basic uploader)<br /><br />during uploads, this icon becomes a progress indicator!',
 		"ot_u2w": 'up2k: upload files with resume support (close your browser and drop the same files in later)$N$Nmultithreaded, and file timestamps are preserved, but it uses more CPU than [🎈]&nbsp; (the basic uploader)<br /><br />during uploads, this icon becomes a progress indicator!',
 		"ot_noie": 'Please use Chrome / Firefox / Edge',
@@ -149,6 +150,7 @@ if (1)
 		"wt_selall": "select all files$NHotkey: ctrl-A (when file focused)",
 		"wt_selinv": "invert selection",
 		"wt_zip1": "download this folder as archive",
+		"wt_unz": "extract the selected archive (zip / tar) on the server",
 		"wt_selzip": "download selection as archive",
 		"wt_seldl": "download selection as separate files$NHotkey: Y",
 		"wt_npirc": "copy irc-formatted track info",
@@ -435,6 +437,38 @@ if (1)
 		"fd_warn1": "DELETE these {0} items?",
 		"fd_warn2": "<b>Last chance!</b> No way to undo. Delete?",
 
+		"uz_eperm": "you do not have write-access in this folder",
+		"uz_e1": "select exactly one archive (zip, tar, tar.gz, tar.xz, ...) to extract",
+		"uz_dst": "extract <code>{0}</code> into this folder:",
+		"uz_rep": "overwrite existing files (needs delete-access)",
+		"uz_busy": "extracting <code>{0}</code> ...\n\nthis can take a while for big archives",
+		"uz_ok": "extracted {0} files ({1}) into <a href=\"{2}\">{3}</a>",
+		"uz_skip": "\n\n{0} items were skipped:",
+		"uz_err": "extraction failed:\n",
+
+		"wc_h1": "run a server command",
+		"wc_none": "no commands are configured on this server",
+		"wc_cmd": "command:",
+		"wc_arg": "argument (URL, text):",
+		"wc_src": "source file:",
+		"wc_dst": "destination folder:",
+		"wc_usel": "use selected",
+		"wc_run": "▶ run",
+		"wc_h2": "jobs",
+		"wc_upd": "refresh",
+		"wc_nojobs": "no jobs yet",
+		"wc_log": "log",
+		"wc_kill": "kill",
+		"wc_kconf": "kill job {0}?",
+		"wc_run1": "running",
+		"wc_done": "finished",
+		"wc_rc": "exit code {0}",
+		"wc_killed": "killed",
+		"wc_ok": "started job {0}",
+		"wc_err": "failed to start the command:\n",
+		"wc_tmux": "attach to it on the server with",
+		"wc_nosrc": "select a file first, or type its path",
+
 		"fc_ok": "cut {0} items",
 		"fc_warn": 'cut {0} items\n\nbut: only <b>this</b> browser-tab can paste them\n(since the selection is so absolutely massive)',
 
@@ -670,6 +704,7 @@ if (1)
 		"rc_wopi": "open in office editor",
 		"rc_dl": "download",
 		"rc_zip": "download as archive",
+		"rc_unz": "extract archive here...",
 		"rc_cpl": "copy link",
 		"rc_del": "delete",
 		"rc_cut": "cut",
@@ -813,6 +848,7 @@ ebi('ops').innerHTML = (
 	'<a href="#" id="opa_msg" data-dest="msg" tt="' + L.ot_msg + '">📟</a>' +
 	'<a href="#" id="opa_auc" data-dest="player" tt="' + L.ot_mp + '">🎺</a>' +
 	'<a href="#" id="opa_cfg" data-dest="cfg" tt="' + L.ot_cfg + '">⚙️</a>' +
+	(have_wcmd ? '<a href="#" id="opa_wcmd" data-perm="admin" data-dest="wcmd" tt="' + L.ot_wcmd + '">&gt;_</a>' : '') +
 	(IE ? '<span id="noie">' + L.ot_noie + '</span>' : '') +
 	'<div id="opdesc"></div>'
 );
@@ -828,7 +864,8 @@ ebi('widget').innerHTML = (
 	' href="#" id="fdel" tt="' + L.wt_del + '">⌫<span>del.</span></a><a' +
 	' href="#" id="fcut" tt="' + L.wt_cut + '">✂<span>cut</span></a><a' +
 	' href="#" id="fcpy" tt="' + L.wt_cpy + '">⧉<span>copy</span></a><a' +
-	' href="#" id="fpst" tt="' + L.wt_pst + '">📋<span>paste</span></a>' +
+	' href="#" id="fpst" tt="' + L.wt_pst + '">📋<span>paste</span></a><a' +
+	' href="#" id="funz" tt="' + L.wt_unz + '">🗜<span>unzip</span></a>' +
 	'</span><span id="wzip1"><a' +
 	' href="#" id="zip1" tt="' + L.wt_zip1 + '">📦<span>zip</span></a>' +
 	'</span><span id="wzip"><a' +
@@ -1121,6 +1158,7 @@ ebi('rcm').innerHTML = (
 	(have_zip ?
 		'<a href="#" id="rzip">' + L.rc_zip + '</a>'
 	: '') +
+	(have_unzip ? '<a href="#" id="runz">' + L.rc_unz + '</a>' : '') +
 	'<div id="rs2" class="sep"></div>' +
 	(have_del ? '<a href="#" id="rdel">' + L.rc_del + '</a>' : '') +
 	(have_mv ? '<a href="#" id="rcut">' + L.rc_cut + '</a>' : '') +
@@ -3944,6 +3982,7 @@ var fileman = (function () {
 		bcpy = ebi('fcpy'),
 		bpst = ebi('fpst'),
 		bshr = ebi('fshr'),
+		bunz = ebi('funz'),
 		t_paste,
 		r = {};
 
@@ -3974,10 +4013,12 @@ var fileman = (function () {
 			hdel = !(have_del && has(perms, 'delete')),
 			hcut = !(have_mv && has(perms, 'move')),
 			hpst = !(have_mv && has(perms, 'write')),
-			hshr = !can_shr || !get_evpath().indexOf(have_shr);
+			hshr = !can_shr || !get_evpath().indexOf(have_shr),
+			enunz = !!r.unz_sel(),
+			hunz = !(have_unzip && has(perms, 'write'));
 
 		if (!(enren || endel || encut || enpst))
-			hren = hdel = hcut = hpst = true;
+			hren = hdel = hcut = hpst = hunz = true;
 
 		clmod(bren, 'en', enren);
 		clmod(bdel, 'en', endel);
@@ -3985,12 +4026,14 @@ var fileman = (function () {
 		clmod(bcpy, 'en', encpy);
 		clmod(bpst, 'en', enpst);
 		clmod(bshr, 'en', 1);
+		clmod(bunz, 'en', enunz);
 
 		clmod(bren, 'hide', hren);
 		clmod(bdel, 'hide', hdel);
 		clmod(bcut, 'hide', hcut);
 		clmod(bpst, 'hide', hpst);
 		clmod(bshr, 'hide', hshr);
+		clmod(bunz, 'hide', hunz);
 
 		clmod(ebi('wfm'), 'act', QS('#wfm a.en:not(.hide)'));
 		clmod(ebi('wtoggle'), 'm3u', mpl.m3uen && (nsel || (mp && mp.au)));
@@ -4004,6 +4047,84 @@ var fileman = (function () {
 
 		bpst.setAttribute('tt', L.ft_paste.format(r.clip.length));
 		bshr.setAttribute('tt', nsel ? L.fs_ss : L.fs_sc);
+	};
+
+	var RE_ARC = /\.(zip|cbz|tar|tgz|tbz2?|txz|tar\.(gz|bz2|xz))$/i;
+
+	// returns the selected archive if exactly one is selected
+	r.unz_sel = function () {
+		var sel = msel.getsel();
+		if (sel.length != 1 || sel[0].isd || !RE_ARC.test(sel[0].fn))
+			return null;
+		return sel[0];
+	};
+
+	r.unzip = function (e) {
+		ev(e);
+		if (clgot(bunz, 'hide'))
+			return toast.err(3, L.uz_eperm);
+
+		var arc = r.unz_sel();
+		if (!arc)
+			return toast.err(3, L.uz_e1);
+
+		var stem = arc.fn.replace(/(\.tar)?\.[^.]+$/i, '') || (arc.fn + '.d'),
+			dst0 = uricom_dec(get_evpath()) + stem + '/',
+			rep = false;
+
+		modal.prompt(
+			L.uz_dst.format(esc(arc.fn)) +
+			'<br /><label><input type="checkbox" id="unz_rep" /> ' + L.uz_rep + '</label>',
+			dst0, function (dst) {
+				if (!dst)
+					return;
+
+				dst = dst.trim();
+				if (!dst.startsWith('/'))
+					dst = uricom_dec(get_evpath()) + dst;
+
+				go(dst);
+			}, null, function () {
+				var cb = ebi('unz_rep');
+				if (cb)
+					cb.onchange = function () {
+						rep = this.checked;
+					};
+			});
+
+		function go(dst) {
+			var xhr = new XHR(),
+				url = arc.vp + '?unzip=' + uricom_enc(dst) + (rep ? '&replace' : '');
+
+			toast.show('inf r', 0, L.uz_busy.format(esc(arc.fn)), 'unz');
+			xhr.open('POST', url, true);
+			xhr.onload = xhr.onerror = function () {
+				if (!xhrchk(this, L.uz_err, L.uz_err, 'err', 'unz'))
+					return;
+
+				try {
+					var ret = JSON.parse(this.responseText);
+				}
+				catch (ex) {
+					return toast.err(0, L.badreply + ':\n' + esc(this.responseText));
+				}
+
+				var msg = L.uz_ok.format(ret.nf, humansize(ret.sz), esc(ret.dst), esc(uricom_dec(ret.dst))),
+					fun = 'ok';
+
+				if (ret.nskip) {
+					fun = 'warn';
+					msg += L.uz_skip.format(ret.nskip);
+					for (var a = 0; a < Math.min(10, ret.skipped.length); a++)
+						msg += '\n' + esc(ret.skipped[a][0]) + ' &ndash; <em>' + esc(ret.skipped[a][1]) + '</em>';
+					if (ret.nskip > 10)
+						msg += '\n...';
+				}
+				toast[fun](ret.nskip ? 0 : 10, msg, 'unz');
+				treectl.goto();
+			};
+			xhr.send();
+		}
 	};
 
 	r.fsi = function (sel) {
@@ -5032,6 +5153,7 @@ var fileman = (function () {
 	bcpy.onclick = r.cpy;
 	bpst.onclick = r.paste;
 	bshr.onclick = r.share;
+	bunz.onclick = r.unzip;
 
 	return r;
 })();
@@ -9657,6 +9779,243 @@ function goto_unpost(e) {
 }
 
 
+var wcmd = (function () {
+	var r = {},
+		cmds = [],
+		jobs = [],
+		logjob = '',
+		timer = null;
+
+	if (!have_wcmd)
+		return r;
+
+	ebi('op_wcmd').innerHTML = (
+		'<h3>' + L.wc_h1 + '</h3>' +
+		'<div id="wcmd_form">' +
+		'<p>' + L.wc_cmd + ' <select id="wcmd_sel"></select> <code id="wcmd_argv"></code></p>' +
+		'<p id="wcmd_parg">' + L.wc_arg + '<br /><input type="text" id="wcmd_arg" ' + NOAC + ' placeholder="https://" /></p>' +
+		'<p id="wcmd_psrc">' + L.wc_src + ' <a href="#" id="wcmd_usel">' + L.wc_usel + '</a><br /><input type="text" id="wcmd_src" ' + NOAC + ' /></p>' +
+		'<p id="wcmd_pdst">' + L.wc_dst + '<br /><input type="text" id="wcmd_dst" ' + NOAC + ' /></p>' +
+		'<p><a href="#" id="wcmd_go" class="btn">' + L.wc_run + '</a></p>' +
+		'</div>' +
+		'<h3>' + L.wc_h2 + ' &ndash; <a href="#" id="wcmd_refresh">' + L.wc_upd + '</a></h3>' +
+		'<div id="wcmd_jobs"></div>' +
+		'<pre id="wcmd_log"></pre>'
+	);
+
+	var sel = ebi('wcmd_sel');
+
+	function cur() {
+		for (var a = 0; a < cmds.length; a++)
+			if (cmds[a].name == sel.value)
+				return cmds[a];
+		return null;
+	}
+
+	function selfile() {
+		var s = msel.getsel();
+		for (var a = 0; a < s.length; a++)
+			if (!s[a].isd)
+				return uricom_dec(s[a].vp);
+		return '';
+	}
+
+	r.render_form = function () {
+		var c = cur(),
+			need = c ? c.need : [];
+
+		ebi('wcmd_argv').textContent = c ? c.argv.join(' ') : '';
+		ebi('wcmd_parg').style.display = has(need, 'arg') ? '' : 'none';
+		ebi('wcmd_psrc').style.display = has(need, 'src') ? '' : 'none';
+		ebi('wcmd_pdst').style.display = has(need, 'dst') ? '' : 'none';
+		swrite('wcmd_sel', sel.value);
+	};
+
+	r.render_jobs = function () {
+		if (!jobs.length)
+			return ebi('wcmd_jobs').innerHTML = '<p><em>' + L.wc_nojobs + '</em></p>';
+
+		var html = ['<table><thead><tr><td></td><td></td><td>started</td><td>by</td><td>cmd</td><td>state</td></tr></thead><tbody>'];
+		for (var a = 0; a < jobs.length; a++) {
+			var j = jobs[a],
+				st = j.running ? '<b>' + L.wc_run1 + '</b>' :
+					j.rc === null ? L.wc_killed :
+					L.wc_done + ', ' + L.wc_rc.format(j.rc),
+				jtt = esc(j.argv.join(' ')) + (j.sess ? '$N$N' + L.wc_tmux + ' <code>tmux attach -t ' + esc(j.sess) + '</code>' : '');
+
+			html.push(
+				'<tr' + (j.id == logjob ? ' class="act"' : '') + '>' +
+				'<td><a href="#" data-log="' + j.id + '">' + L.wc_log + '</a></td>' +
+				'<td>' + (j.running ? '<a href="#" data-kill="' + j.id + '">' + L.wc_kill + '</a>' : '') + '</td>' +
+				'<td>' + unix2ui(j.t0) + '</td>' +
+				'<td>' + esc(j.usr) + '</td>' +
+				'<td tt="' + jtt + '">' + esc(j.name) + '</td>' +
+				'<td>' + st + '</td></tr>');
+		}
+		html.push('</tbody></table>');
+		ebi('wcmd_jobs').innerHTML = html.join('\n');
+		tt.att(ebi('wcmd_jobs'));
+	};
+
+	r.load = function () {
+		clearTimeout(timer);
+		var xhr = new XHR();
+		xhr.open('GET', get_evpath() + '?wcmd', true);
+		xhr.onload = xhr.onerror = function () {
+			if (!xhrchk(this, L.wc_err, L.wc_none, 'err', 'wcmd'))
+				return;
+
+			var res = JSON.parse(this.responseText),
+				prev = sel.value || sread('wcmd_sel') || '';
+
+			if (JSON.stringify(res.cmds) != JSON.stringify(cmds)) {
+				cmds = res.cmds;
+				var html = [];
+				for (var a = 0; a < cmds.length; a++)
+					html.push('<option value="' + esc(cmds[a].name) + '">' + esc(cmds[a].name) + '</option>');
+				sel.innerHTML = html.join('');
+				if (prev)
+					sel.value = prev;
+				if (!cur())
+					sel.selectedIndex = 0;
+				r.render_form();
+			}
+			ebi('wcmd_form').style.display = cmds.length ? '' : 'none';
+			if (!cmds.length)
+				ebi('wcmd_jobs').innerHTML = '<p>' + L.wc_none + '</p>';
+
+			var was_running = {}, busy = false, fin = false;
+			for (var a = 0; a < jobs.length; a++)
+				if (jobs[a].running)
+					was_running[jobs[a].id] = 1;
+
+			jobs = res.jobs;
+			r.render_jobs();
+			if (logjob)
+				r.showlog(logjob);
+
+			for (var a = 0; a < jobs.length; a++) {
+				if (jobs[a].running)
+					busy = true;
+				else if (was_running[jobs[a].id])
+					fin = true;
+			}
+
+			// a job finished; it probably created some files
+			if (fin)
+				treectl.goto();
+
+			// keep polling while the tab is open and something is running
+			if (busy && QS('#op_wcmd.act'))
+				timer = setTimeout(r.load, 2000);
+		};
+		xhr.send();
+	};
+
+	r.showlog = function (jid) {
+		logjob = jid;
+		var xhr = new XHR();
+		xhr.open('GET', get_evpath() + '?wcmd=log&job=' + uricom_enc(jid), true);
+		xhr.onload = xhr.onerror = function () {
+			if (!xhrchk(this, L.wc_err, L.wc_err, 'err', 'wcmd'))
+				return;
+
+			var el = ebi('wcmd_log'),
+				atend = el.scrollTop + el.clientHeight >= el.scrollHeight - 8;
+
+			el.textContent = '$ ' + jid + '\n' + this.responseText;
+			if (atend)
+				el.scrollTop = el.scrollHeight;
+		};
+		xhr.send();
+	};
+
+	function post(body, cb) {
+		var xhr = new XHR();
+		xhr.open('POST', get_evpath() + '?wcmd', true);
+		xhr.setRequestHeader('Content-Type', 'application/json');
+		xhr.onload = xhr.onerror = function () {
+			if (!xhrchk(this, L.wc_err, L.wc_err, 'err', 'wcmd'))
+				return;
+			cb(this.responseText);
+		};
+		xhr.send(JSON.stringify(body));
+	}
+
+	r.run = function (e) {
+		ev(e);
+		var c = cur();
+		if (!c)
+			return;
+
+		var body = {
+			'act': 'run',
+			'cmd': c.name,
+			'arg': ebi('wcmd_arg').value,
+			'src': ebi('wcmd_src').value,
+			'dst': ebi('wcmd_dst').value
+		};
+		if (has(c.need, 'src') && !body.src)
+			return toast.err(3, L.wc_nosrc);
+
+		post(body, function (txt) {
+			var j = JSON.parse(txt);
+			toast.ok(3, L.wc_ok.format(esc(j.id)), 'wcmd');
+			ebi('wcmd_arg').value = '';
+			logjob = j.id;
+			setTimeout(r.load, 300);
+		});
+	};
+
+	ebi('wcmd_jobs').onclick = function (e) {
+		var a = e.target.closest('a');
+		if (!a)
+			return;
+
+		ev(e);
+		var jid = a.getAttribute('data-log');
+		if (jid) {
+			r.showlog(jid);
+			return r.render_jobs();
+		}
+
+		jid = a.getAttribute('data-kill');
+		if (jid)
+			modal.confirm(L.wc_kconf.format(esc(jid)), function () {
+				post({ 'act': 'kill', 'job': jid }, function () {
+					setTimeout(r.load, 300);
+				});
+			}, null);
+	};
+
+	r.prefill = function () {
+		ebi('wcmd_dst').value = uricom_dec(get_evpath());
+		var f = selfile();
+		if (f)
+			ebi('wcmd_src').value = f;
+	};
+
+	sel.onchange = r.render_form;
+	ebi('wcmd_go').onclick = r.run;
+	ebi('wcmd_refresh').onclick = function (e) {
+		ev(e);
+		r.load();
+	};
+	ebi('wcmd_usel').onclick = function (e) {
+		ev(e);
+		ebi('wcmd_src').value = selfile() || ebi('wcmd_src').value;
+	};
+
+	return r;
+})();
+
+
+function goto_wcmd(e) {
+	wcmd.prefill();
+	wcmd.load();
+}
+
+
 function wintitle(txt, noname) {
 	if (txt === undefined)
 		txt = '';
@@ -9860,6 +10219,7 @@ var rcm = (function () {
 				case 'cpl': cliptxt(selFile.url, function() {toast.ok(2, L.clipped)}); break;
 				case 'dl': ebi('seldl').click(); break;
 				case 'zip': ebi('selzip').click(); break;
+				case 'unz': fileman.unzip(); break;
 				case 'del': fileman.delete(); break;
 				case 'cut': fileman.cut(); break;
 				case 'cpy': fileman.cpy(); break;
@@ -9934,6 +10294,7 @@ var rcm = (function () {
 		clmod(ebi('rcpl'), 'hide', !selFile.path);
 		clmod(ebi('rdl'), 'hide', !has_sel);
 		clmod(ebi('rzip'), 'hide', !has_sel);
+		clmod(ebi('runz'), 'hide', !fileman.unz_sel());
 		clmod(ebi('rs2'), 'hide', !has_sel);
 		clmod(ebi('rcut'), 'hide', !has_sel);
 		clmod(ebi('rdel'), 'hide', !has_sel);

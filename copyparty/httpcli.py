@@ -38,6 +38,7 @@ from .qrkode import qr2svg, qrgen
 from .star import StreamTar
 from .sutil import StreamArc, gfilter
 from .szip import StreamZip
+from .unarc import ArcReader, arc_stem
 from .up2k import up2k_chunksize
 from .util import unquote  # type: ignore
 from .util import (
@@ -1537,6 +1538,9 @@ class HttpCli(object):
         if "tree" in self.uparam:
             return self.tx_tree()
 
+        if "wcmd" in self.uparam:
+            return self.tx_wcmd()
+
         if "scan" in self.uparam:
             return self.scanvol()
 
@@ -2505,6 +2509,9 @@ class HttpCli(object):
         if "copy" in self.uparam:
             return self.handle_cp()
 
+        if "unzip" in self.uparam:
+            return self.handle_unzip()
+
         if "delete" in self.uparam:
             return self.handle_rm([])
 
@@ -3214,6 +3221,9 @@ class HttpCli(object):
 
         if "delete" in self.uparam:
             return self.handle_rm(body)
+
+        if "wcmd" in self.uparam:
+            return self.handle_wcmd(body)
 
         name = undot(body["name"])
         if "/" in name:
@@ -6914,6 +6924,349 @@ class HttpCli(object):
             "up2k.handle_cp", self.ouparam.get("akey"), self.uname, self.ip, vsrc, vdst
         )
         self.loud_reply(x.get(), status=201)
+        return True
+
+    def handle_unzip(self) -> bool:
+        # extract the archive at self.vpath into the folder ?unzip=/dst/vpath
+        if self.args.no_unzip:
+            raise Pebkac(403, "the unzip feature is disabled in server config")
+
+        svn, srem = self.asrv.vfs.get(self.vpath, self.uname, True, False)
+        sabs = svn.canonical(srem, False)
+        if not bos.path.isfile(sabs):
+            raise Pebkac(400, "unzip: source is not a file")
+
+        dst = self.uparam.get("unzip") or ""
+        if self.is_vproxied and dst.startswith(self.args.SR):
+            dst = dst[len(self.args.RS) :]
+        if not dst:
+            # default: subfolder next to the archive, named after it
+            vdir, fn = vsplit(self.vpath)
+            dst = vjoin(vdir, arc_stem(fn))
+        dst = sanitize_vpath(undot(dst))
+
+        # verify write-access to the destination before reading anything
+        dvn, drem = self.asrv.vfs.get(dst, self.uname, False, True)
+        replace = "replace" in self.uparam
+        if replace:
+            self.asrv.vfs.get(dst, self.uname, False, True, False, True)
+
+        maxn = self.args.unzip_maxn
+        maxs = self.args.unzip_maxs
+        t0 = time.time()
+
+        with ArcReader(sabs) as arc:
+            pre_n, pre_sz = arc.precheck()
+            if maxn and pre_n > maxn:
+                t = "unzip: archive has %d files; server limit is %d"
+                raise Pebkac(400, t % (pre_n, maxn))
+            if maxs and pre_sz > maxs:
+                t = "unzip: archive would extract to %s; server limit is %s"
+                raise Pebkac(400, t % (humansize(pre_sz), humansize(maxs)))
+
+            self.log("unzip %s %r  -->  %r" % (arc.fmt, sabs, dst))
+            ret = self._unzip(arc, dst, replace, maxn, maxs)
+
+        spd = self._spd(ret["sz"], False)
+        t = "unzip done; %d files, %d dirs, %s, %d skipped, %.2fs  # %s"
+        zt = (ret["nf"], ret["nd"], humansize(ret["sz"]), ret["nskip"])
+        self.log(t % (zt + (time.time() - t0, spd)))
+
+        ret["dst"] = self.args.SRS + dst + ("/" if dst else "")
+        if self.is_vproxied:
+            ret["dst"] = self.args.SR + ret["dst"]
+        zs = json.dumps(ret, sort_keys=True)
+        self.reply(zs.encode("utf-8"), status=201, mime="application/json")
+        return True
+
+    def _unzip(
+        self, arc: ArcReader, dst: str, replace: bool, maxn: int, maxs: int
+    ) -> dict[str, Any]:
+        nullwrite = self.args.nw
+        nf = nd = nskip = sz_total = 0
+        skipped: list[list[str]] = []
+        dip = self.dip()
+
+        def skip(name: str, why: str) -> None:
+            if len(skipped) < 100:
+                skipped.append([name, why])
+            self.log("unzip: skipping %r; %s" % (name, why), 6)
+
+        for ent in arc.entries():
+            if ent.err:
+                nskip += 1
+                skip(ent.rel, ent.err)
+                continue
+
+            vp = vjoin(dst, ent.rel)
+            try:
+                # resolve each path separately; may hit another volume
+                vn, rem = self.asrv.vfs.get(vp, self.uname, False, True)
+            except Pebkac as ex:
+                nskip += 1
+                skip(ent.rel, "no write-access (%s)" % (ex.code,))
+                continue
+
+            self._assert_safe_rem(rem)
+            dbv, vrem = vn.get_dbv(rem)
+            abspath = vn.canonical(rem)
+            hp = dbv.histpath
+            if hp and (abspath == hp or abspath.startswith(hp + os.sep)):
+                nskip += 1
+                skip(ent.rel, "reserved folder")
+                continue
+
+            if "nosub" in vn.flags and "/" in rem:
+                nskip += 1
+                skip(ent.rel, "no subfolders allowed here")
+                continue
+
+            if ent.is_dir:
+                if bos.path.isfile(abspath):
+                    nskip += 1
+                    skip(ent.rel, "a file with that name exists")
+                elif not nullwrite and not bos.path.isdir(abspath):
+                    bos.makedirs(abspath, vf=vn.flags)
+                    nd += 1
+                continue
+
+            nf += 1
+            if maxn and nf > maxn:
+                raise Pebkac(400, "unzip: too many files; server limit is %d" % (maxn,))
+            if maxs and sz_total + ent.sz > maxs:
+                t = "unzip: extracted size would exceed server limit of %s"
+                raise Pebkac(400, t % (humansize(maxs),))
+
+            if bos.path.isdir(abspath):
+                nf -= 1
+                nskip += 1
+                skip(ent.rel, "a folder with that name exists")
+                continue
+
+            if bos.path.exists(abspath):
+                if not replace:
+                    nf -= 1
+                    nskip += 1
+                    skip(ent.rel, "file exists")
+                    continue
+                if not nullwrite:
+                    self.log("unzip: overwriting %r" % (abspath,))
+                    wunlink(self.log, abspath, vn.flags)
+
+            fdir, fn = os.path.split(abspath)
+            perms = self.asrv.vfs.get_perms(vp, self.uname)
+            xbu = vn.flags.get("xbu")
+            if xbu:
+                hr = runhook(
+                    self.log,
+                    self.conn.hsrv.broker,
+                    None,
+                    "xbu.http.unzip",
+                    xbu,
+                    abspath,
+                    vp,
+                    self.host,
+                    self.uname,
+                    perms,
+                    ent.mt,
+                    ent.sz,
+                    self.ip,
+                    time.time(),
+                    None,
+                )
+                t = hr.get("rejectmsg") or ""
+                if t or hr.get("rc") != 0:
+                    nf -= 1
+                    nskip += 1
+                    skip(ent.rel, t or "rejected by xbu server config")
+                    continue
+
+            lim = dbv.lim
+            if lim:
+                try:
+                    lim.chk_sz(ent.sz)
+                    lim.chk_df(abspath, ent.sz)
+                    lim.chk_vsz(self.conn.hsrv.broker, dbv.realpath, ent.sz)
+                except Pebkac as ex:
+                    raise Pebkac(ex.code, "unzip stopped at %r: %s" % (ent.rel, ex))
+
+            if nullwrite:
+                sz_total += ent.sz
+                continue
+
+            bos.makedirs(fdir, vf=vn.flags)
+            tnam = fn + ".PARTIAL"
+            if self.args.dotpart:
+                tnam = "." + tnam
+
+            suffix = "-%.6f-%s" % (time.time(), dip)
+            f, tnam = ren_open(tnam, "wb", fdir=fdir, suffix=suffix, vf=vn.flags)
+            tabspath = os.path.join(fdir, tnam)
+            sz = 0
+            try:
+                fi = arc.open(ent)
+                try:
+                    while True:
+                        buf = fi.read(self.args.iobuf)
+                        if not buf:
+                            break
+                        sz += len(buf)
+                        # don't trust the archive's metadata
+                        if sz > ent.sz or (maxs and sz_total + sz > maxs):
+                            raise Pebkac(400, "unzip: %r is bigger than it claims" % (ent.rel,))
+                        f.write(buf)
+                finally:
+                    fi.close()
+            except Exception as ex:
+                f.close()
+                wunlink(self.log, tabspath, vn.flags)
+                if isinstance(ex, Pebkac):
+                    raise
+                self.log("unzip: failed at %r: %s" % (ent.rel, min_ex()), 3)
+                t = "unzip stopped at %r (%d files were extracted before this); the archive is corrupt or unreadable: %r"
+                raise Pebkac(400, t % (ent.rel, nf - 1, ex))
+            f.close()
+
+            atomic_move(self.log, tabspath, abspath, vn.flags)
+            sz_total += sz
+            try:
+                bos.utime(abspath, (int(time.time()), int(ent.mt)), False)
+            except:
+                pass
+
+            xau = vn.flags.get("xau")
+            if xau:
+                hr = runhook(
+                    self.log,
+                    self.conn.hsrv.broker,
+                    None,
+                    "xau.http.unzip",
+                    xau,
+                    abspath,
+                    vp,
+                    self.host,
+                    self.uname,
+                    perms,
+                    ent.mt,
+                    sz,
+                    self.ip,
+                    time.time(),
+                    None,
+                )
+                t = hr.get("rejectmsg") or ""
+                if t or hr.get("rc") != 0:
+                    wunlink(self.log, abspath, vn.flags)
+                    nf -= 1
+                    nskip += 1
+                    sz_total -= sz
+                    skip(ent.rel, t or "rejected by xau server config")
+                    continue
+
+            dbv_rd, dbv_fn = vsplit(vrem)
+            self.conn.hsrv.broker.say(
+                "up2k.hash_file",
+                dbv.realpath,
+                dbv.vpath,
+                dbv.flags,
+                dbv_rd,
+                dbv_fn,
+                self.ip,
+                time.time(),
+                self.uname,
+                True,
+            )
+
+        return {"nf": nf, "nd": nd, "sz": sz_total, "nskip": nskip, "skipped": skipped}
+
+    def _wcmd_chk(self) -> None:
+        if not self.args.wcmd:
+            raise Pebkac(404, "no web-commands are configured on this server")
+        if not self.can_admin:
+            t = "web-commands require admin-access in this folder; user %s is not admin under /%s"
+            raise Pebkac(403, t % (self.uname, self.vpath))
+
+    def _wcmd_vis(self, job: dict[str, Any]) -> bool:
+        # only show jobs started in folders where the user is admin
+        try:
+            return self.asrv.vfs.can_access(job["vp"], self.uname)[7]
+        except:
+            return False
+
+    def tx_wcmd(self) -> bool:
+        self._wcmd_chk()
+        broker = self.conn.hsrv.broker
+        act = self.uparam.get("wcmd") or ""
+        if act == "log":
+            jid = self.uparam.get("job") or ""
+            job = broker.ask("wcmd.get_job", jid).get()
+            if not self._wcmd_vis(job):
+                raise Pebkac(404, "no such job")
+            txt = broker.ask("wcmd.tail", jid).get()
+            self.reply(txt.encode("utf-8", "replace"), mime="text/plain; charset=utf-8")
+            return True
+
+        ret = broker.ask("wcmd.status").get()
+        ret["jobs"] = [x for x in ret["jobs"] if self._wcmd_vis(x)]
+        zs = json.dumps(ret, sort_keys=True)
+        self.reply(zs.encode("utf-8"), mime="application/json")
+        return True
+
+    def _wcmd_vp(self, vp: str) -> str:
+        # expects a plain (not url-encoded) vpath
+        if self.is_vproxied and vp.startswith(self.args.SR):
+            vp = vp[len(self.args.RS) :]
+        return sanitize_vpath(undot(vp.strip("/")))
+
+    def handle_wcmd(self, body: dict[str, Any]) -> bool:
+        self._wcmd_chk()
+        broker = self.conn.hsrv.broker
+        act = body.get("act")
+        if act == "kill":
+            jid = unicode(body.get("job") or "")
+            job = broker.ask("wcmd.get_job", jid).get()
+            if not self._wcmd_vis(job):
+                raise Pebkac(404, "no such job")
+            self.log("wcmd: %s is killing job %s" % (self.uname, jid))
+            self.reply(broker.ask("wcmd.kill", jid).get().encode("utf-8"))
+            return True
+
+        if act != "run":
+            raise Pebkac(400, "unknown wcmd action")
+
+        name = unicode(body.get("cmd") or "")
+        cmds = broker.ask("wcmd.status").get()["cmds"]
+        cdef = next((x for x in cmds if x["name"] == name), None)
+        if not cdef:
+            raise Pebkac(404, "no such command")
+
+        # resolve paths and check permissions for the variables this command uses
+        vn, rem = self.asrv.vfs.get(self.vpath, self.uname, False, True)
+        cwd = vn.canonical(rem)
+        if not bos.path.isdir(cwd):
+            raise Pebkac(400, "the current folder does not exist")
+
+        vals = {"dir": cwd}
+        need = cdef["need"]
+        if "src" in need:
+            svp = self._wcmd_vp(unicode(body.get("src") or ""))
+            svn, srem = self.asrv.vfs.get(svp, self.uname, True, False)
+            vals["src"] = svn.canonical(srem)
+            if not srem or not bos.path.exists(vals["src"]):
+                raise Pebkac(400, "the selected file does not exist")
+        if "dst" in need:
+            dvp = self._wcmd_vp(unicode(body.get("dst") or ""))
+            dvn, drem = self.asrv.vfs.get(dvp, self.uname, False, True)
+            vals["dst"] = dvn.canonical(drem)
+            if not self.args.nw:
+                bos.makedirs(vals["dst"], vf=dvn.flags)
+        if "arg" in need:
+            vals["arg"] = unicode(body.get("arg") or "").strip()
+
+        job = broker.ask(
+            "wcmd.run", name, vals, cwd, self.vpath, self.uname, self.ip
+        ).get()
+        zs = json.dumps(job, sort_keys=True)
+        self.reply(zs.encode("utf-8"), status=201, mime="application/json")
         return True
 
     def handle_fs_abrt(self):

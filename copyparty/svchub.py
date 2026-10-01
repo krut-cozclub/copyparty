@@ -58,6 +58,7 @@ from .th_srv import (
     ThumbSrv,
 )
 from .up2k import Up2k
+from .wcmd import WCmd
 from .util import (
     BLOCK_SIGS,
     DEF_EXP,
@@ -98,6 +99,7 @@ from .util import (
     termsize,
     ub64enc,
     umktrans,
+    unhumanize,
 )
 
 if HAVE_SQLITE3:
@@ -436,6 +438,7 @@ class SvcHub(object):
             self.args.no_fastboot = True
 
         self.up2k = Up2k(self)
+        self.wcmd = WCmd(self)
 
         self._feature_test()
 
@@ -459,6 +462,9 @@ class SvcHub(object):
         args.th_r_ffi = _build_th_fset(args.th_r_ffi, args.th_ffi_add)
         args.th_r_ffv = _build_th_fset(args.th_r_ffv, args.th_ffv_add)
         args.th_r_ffa = _build_th_fset(args.th_r_ffa, args.th_ffa_add)
+
+        args.unzip_maxn = unhumanize(args.unzip_maxn)
+        args.unzip_maxs = unhumanize(args.unzip_maxs)
 
         th_extract = args.th_extract or []
         args.th_extract = {}
@@ -1739,6 +1745,7 @@ class SvcHub(object):
             self.broker.shutdown()
             self.tcpsrv.shutdown()
             self.up2k.shutdown()
+            self.wcmd.shutdown()
 
             if hasattr(self, "smbd"):
                 slp = max(slp, time.time() + 0.5)

@@ -3332,6 +3332,8 @@ class AuthSrv(object):
                 "have_zls": not self.args.no_zls,
                 "have_mv": not self.args.no_mv,
                 "have_del": not self.args.no_del,
+                "have_unzip": not self.args.no_unzip,
+                "have_wcmd": bool(self.args.wcmd),
                 "have_unpost": int(self.args.unpost),
                 "have_emp": int(self.args.emp),
                 "md_no_br": int(vf.get("md_no_br") or 0),

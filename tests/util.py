@@ -39,6 +39,7 @@ from copyparty.ico import Ico
 from copyparty.u2idx import U2idx
 from copyparty.up2k import Up2k
 from copyparty.util import FHC, CachedDict, Garda, Unrecv, expand_osenv_c
+from copyparty.wcmd import WCmd
 
 init_E(E)
 
@@ -145,7 +146,7 @@ class Cfg(Namespace):
     def __init__(self, a=None, v=None, c=None, **ka0):
         ka = {}
 
-        ex = "allow_flac allow_wav allow_svg_js chpw cookie_lax daw dav_auth dav_mac dav_rt dlni dothidden e2d e2ds e2dsa e2t e2ts e2tsr e2v e2vu e2vp early_ban ed emp exp force_js getmod grid gsel hardlink hardlink_only http_no_tcp ih ihead localtime log_badxml magic md_no_br nid nih no_acode no_athumb no_bauth no_clone no_cp no_dav no_db_ip no_del no_dirsz no_dupe no_dupe_m no_fnugg no_html no_lifetime no_logues no_mime no_mv no_pipe no_poll no_readme no_robots no_sb_md no_sb_lg no_scandir no_script no_tail no_tarcmp no_thumb no_vthumb no_u2abrt no_zip no_zls nrand nsort nw og og_no_head og_s_title ohead opds q rand re_dirsz redup_dry reflink rm_partial rmagic rss show_hist smb srch_dbg srch_excl srch_nfkc srch_icase stats ui_noacci ui_nocpla ui_noctxb ui_nolbar ui_nombar ui_nonav ui_notree ui_norepl ui_nosrvi uqe usernames vague_403 vc ver vol_nospawn vol_or_crash wo_up_readme wopi write_uplog xdev xlink xvol zipmaxu zs"
+        ex = "allow_flac allow_wav allow_svg_js chpw cookie_lax daw dav_auth dav_mac dav_rt dlni dothidden e2d e2ds e2dsa e2t e2ts e2tsr e2v e2vu e2vp early_ban ed emp exp force_js getmod grid gsel hardlink hardlink_only http_no_tcp ih ihead localtime log_badxml magic md_no_br nid nih no_acode no_athumb no_bauth no_clone no_cp no_dav no_db_ip no_del no_dirsz no_dupe no_dupe_m no_fnugg no_html no_lifetime no_logues no_mime no_mv no_pipe no_poll no_readme no_robots no_sb_md no_sb_lg no_scandir no_script no_tail no_tarcmp no_thumb no_unzip no_vthumb no_u2abrt no_zip no_zls nrand nsort nw og og_no_head og_s_title ohead opds q rand re_dirsz redup_dry reflink rm_partial rmagic rss show_hist smb srch_dbg srch_excl srch_nfkc srch_icase stats ui_noacci ui_nocpla ui_noctxb ui_nolbar ui_nombar ui_nonav ui_notree ui_norepl ui_nosrvi uqe usernames vague_403 vc ver vol_nospawn vol_or_crash wo_up_readme wopi write_uplog xdev xlink xvol zipmaxu zs"
         ka.update(**{k: False for k in ex.split()})
 
         ex = "dav_inf dedup dotpart dotsrch hist_cow hook_v no_dhash no_fastboot no_fpool no_htp no_rescan no_sendfile no_ses no_snap no_up_list no_voldump wram re_dhash see_dots plain_ip"
@@ -163,20 +164,22 @@ class Cfg(Namespace):
         ex = "ac_convt au_vol dl_list du_iwho mcr mtab_age reg_cap s_thead s_tbody tail_tmax tail_who th_convt th_qv th_qvx ups_who ver_iwho zip_who"
         ka.update(**{k: 9 for k in ex.split()})
 
-        ex = "ctl_re db_act forget_ip gauto idp_cookie idp_store k304 loris md_nhist no304 nosubtle qr_pin qr_wait re_maxage rproxy rsp_jtr rsp_slp s_wr_slp snap_wri theme themes turbo u2ow zipmaxn zipmaxs"
+        ex = "ctl_re db_act forget_ip gauto idp_cookie idp_store k304 loris md_nhist no304 nosubtle qr_pin qr_wait re_maxage rproxy rsp_jtr rsp_slp s_wr_slp snap_wri theme themes turbo u2ow unzip_maxn unzip_maxs zipmaxn zipmaxs"
         ka.update(**{k: 0 for k in ex.split()})
 
-        ex = "ah_alg bname chdir chmod_f chpw_db csp_dl csp_ui db_xattr doctitle df epilogues exit favico fika ipa ipar html_head html_head_d html_head_s idp_login idp_logout lg_sba lg_sbf log_date log_fk md_sba md_sbf name og_desc og_site og_th og_title og_title_a og_title_v og_title_i opds_exts preadmes prologues readmes redup shr shr1 shr_site site smsg tcolor textfiles th_pregen txt_eol ufavico ufavico_h unlist up_site vc_url vname xff_src zipmaxt R RS SR"
+        ex = "ah_alg bname chdir chmod_f chpw_db csp_dl csp_ui db_xattr doctitle df epilogues exit favico fika ipa ipar html_head html_head_d html_head_s idp_login idp_logout lg_sba lg_sbf log_date log_fk md_sba md_sbf name og_desc og_site og_th og_title og_title_a og_title_v og_title_i opds_exts preadmes prologues readmes redup shr shr1 shr_site site smsg tcolor textfiles th_pregen txt_eol ufavico ufavico_h unlist up_site vc_url vname wcmd_dir xff_src zipmaxt R RS SR"
         ka.update(**{k: "" for k in ex.split()})
 
         ex = "apnd_who ban_403 ban_404 ban_422 ban_pw ban_pwc ban_url dont_ban cachectl http_vary rcm rss_fmt_d rss_fmt_t spinner"
         ka.update(**{k: "no" for k in ex.split()})
 
-        ex = "ext_th grp idp_h_usr idp_hm_usr ipr on403 on404 qr_file xac xad xar xau xban xbc xbd xbr xbu xiu xm"
+        ex = "ext_th grp idp_h_usr idp_hm_usr ipr on403 on404 qr_file wcmd xac xad xar xau xban xbc xbd xbr xbu xiu xm"
         ka.update(**{k: [] for k in ex.split()})
 
         ex = "exp_lg exp_md"
         ka.update(**{k: {} for k in ex.split()})
+
+        ka.update(wcmd_maxj=4, wcmd_nkeep=50, wcmd_tmux="n")
 
         ka.update(ka0)
 
@@ -279,6 +282,7 @@ class VHub(object):
         self.log = log
         self.is_dut = True
         self.up2k = Up2k(self)
+        self.wcmd = WCmd(self)
 
     def reload(self, a, b):
         pass
@@ -341,6 +345,7 @@ class VHttpSrvUp2k(VHttpSrv):
 
     def shutdown(self):
         self.hub.up2k.shutdown()
+        self.hub.wcmd.shutdown()
         if self.u2idx:
             self.u2idx.shutdown()
 
