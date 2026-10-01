@@ -87,12 +87,20 @@ other options: `--wcmd-dir` (where logs are kept), `--wcmd-nkeep` (how many fini
 
 the image is built from this source tree by [scripts/docker/fork/Dockerfile](../../scripts/docker/fork/Dockerfile), and includes `tmux`, `aria2c`, `7z`, `unzip` and pillow (image thumbnails)
 
-load a prebuilt image from the [github release](https://github.com/krut-cozclub/copyparty/releases):
+pull it (amd64 and arm64; built by [.github/workflows/fork-docker.yml](../../.github/workflows/fork-docker.yml) for each release):
+
+```bash
+docker pull ghcr.io/krut-cozclub/copyparty-fork:latest
+```
+
+or load a tarball from the [github release](https://github.com/krut-cozclub/copyparty/releases):
 
 ```bash
 # pick amd64 for normal pcs, arm64 for raspberry pi 4/5 or apple silicon
 gunzip -c copyparty-fork-amd64.tar.gz | docker load
 ```
+
+(the examples below say `copyparty-fork`; use `ghcr.io/krut-cozclub/copyparty-fork` if you pulled it)
 
 or build it yourself:
 
