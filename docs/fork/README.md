@@ -4,6 +4,7 @@ this fork adds two features to copyparty; neither is in upstream
 
 * [unzip](#unzip) -- extract zip/tar archives on the server, from the web-ui
 * [web-commands](#web-commands) -- run admin-defined commands (aria2c, 7z, yt-dlp, ...) from the web-ui, in tmux
+* [without docker](#without-docker) -- a single python file, `copyparty-fork-sfx.py`
 * [docker image](#docker-image) -- with tmux, aria2, 7zip, unzip, yt-dlp and ffmpeg preinstalled
 
 > **NOTE:** this code was written with an AI assistant, so it must not be submitted upstream; the copyparty [CONTRIBUTING.md](../../CONTRIBUTING.md) does not accept AI-written code. See [upstream-feature-request.md](upstream-feature-request.md) for a draft feature-request instead.
@@ -84,6 +85,28 @@ tmux attach -t cpp-6abe660e677e
 the output is also saved to a logfile which the web-ui shows. Without tmux (or with `--wcmd-tmux n`), jobs run as normal background processes and are stopped when copyparty stops. Older tmux versions are not used, because they would run the command through a shell
 
 other options: `--wcmd-dir` (where logs are kept), `--wcmd-nkeep` (how many finished jobs to remember), see `--help-wcmd`
+
+
+## without docker
+
+each [github release](https://github.com/krut-cozclub/copyparty/releases) has `copyparty-fork-sfx.py`, a single python file with everything inside (like the official `copyparty-sfx.py`); download it and run it with python 3, no install needed:
+
+```bash
+wget https://github.com/krut-cozclub/copyparty/releases/latest/download/copyparty-fork-sfx.py
+python3 copyparty-fork-sfx.py -a admin:CHANGEME -v /path/to/files::A,admin \
+  --wcmd 'dl=aria2c --dir={dir} -- {arg}'
+
+# or with a config file
+python3 copyparty-fork-sfx.py -c copyparty.conf
+```
+
+it works on linux, macos and windows. ftp and tftp are included; the rest is optional and gets enabled automatically if it's installed:
+
+* the programs your `wcmd:` commands use (`aria2c`, `yt-dlp`, `7z`, ...), and `tmux` 3.0+ to run them in tmux sessions; on debian: `sudo apt install tmux aria2 7zip ffmpeg`
+* thumbnails: `python3-pil` and/or `ffmpeg`
+* sftp: `python3-paramiko`; smb: `pip install --user impacket==0.13.0`
+
+the unzip feature needs nothing extra
 
 
 ## docker image

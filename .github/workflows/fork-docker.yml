@@ -18,6 +18,34 @@ permissions:
   packages: write
 
 jobs:
+  sfx:
+    # the single-file copyparty-fork-sfx.py; runs anywhere with python, no docker needed
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+          fetch-depth: 0  # make-sfx.sh takes the version from git tags
+
+      - name: build
+        run: |
+          set -ex
+          sudo apt-get install -y -qq gawk bzip2
+          # make-sfx.sh only understands upstream tags (v1.2.3); hide the fork tags
+          # so the version becomes v1.2.3-N-gHASH, which points at the exact commit
+          git tag -l '*-fork*' | xargs -r git tag -d
+          ./scripts/make-sfx.sh fast dl-wd
+          mv dist/copyparty-sfx.py copyparty-fork-sfx.py
+          python3 copyparty-fork-sfx.py --version
+          python3 copyparty-fork-sfx.py --help | grep -q -- --wcmd
+
+      - name: attach to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "$TAG" copyparty-fork-sfx.py --clobber
+
   image:
     runs-on: ubuntu-latest
     env:
