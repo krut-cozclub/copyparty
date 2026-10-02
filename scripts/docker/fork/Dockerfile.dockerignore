@@ -1,6 +1,7 @@
 *
 !copyparty
 !scripts/docker/fork
+!scripts/patches/pyftpdlib-fe80.patch
 !bin/u2c.py
 !bin/partyfuse.py
 !contrib/webdav-cfg.bat

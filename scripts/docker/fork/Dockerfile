@@ -26,10 +26,24 @@ ENV     XDG_CONFIG_HOME=/cfg \
         PYTHONPATH=/opt/cpp \
         PYTHONDONTWRITEBYTECODE=1
 
-# ffmpeg is used by yt-dlp to merge video+audio, and by copyparty for video thumbnails
+# same packages as the official copyparty/ac image (thumbnails, transcoding,
+# media tags, sftp, mimalloc, ...), plus the tools for web-commands;
+# ffmpeg is also used by yt-dlp to merge video+audio
 RUN     apk --no-cache add \
             python3 py3-jinja2 py3-pillow \
+            tzdata wget mimalloc2 mimalloc2-insecure bubblewrap \
+            py3-argon2-cffi py3-pyzmq py3-openssl py3-paramiko \
             tmux aria2 7zip unzip tini ffmpeg ca-certificates quickjs
+
+# ftp + tftp (the official image bundles these, with the same patch),
+# and impacket for smb (not in the official image)
+COPY    scripts/patches/pyftpdlib-fe80.patch /tmp/
+RUN     apk --no-cache add -t .bd py3-pip patch \
+        && python3 -m pip install -q --break-system-packages --no-cache-dir --root-user-action=ignore \
+            'pyftpdlib==1.5.10' 'partftpy==0.4.0' 'impacket==0.13.0' \
+        && cd "$(python3 -c 'import pyftpdlib,os;print(os.path.dirname(os.path.dirname(pyftpdlib.__file__)))')" \
+        && patch -p1 </tmp/pyftpdlib-fe80.patch \
+        && apk del .bd && rm -rf /tmp/*.patch /root/.cache
 
 # the alpine yt-dlp package lags behind, and yt-dlp must be recent to keep
 # working with most sites; this is the official release, which can also

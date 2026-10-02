@@ -143,6 +143,41 @@ attach to a running job with `docker exec -it CONTAINER tmux attach -t cpp-JOBID
 
 the `/w` folder must be a real mount (`-v`); otherwise copyparty refuses uploads since they would be lost when the container is removed
 
+### replacing copyparty/ac
+
+the image has everything the official `copyparty/ac` image has (pillow, ffmpeg, mimalloc, paramiko/sftp, ftp, tftp, argon2, ...) plus `impacket==0.13.0` for smb, so a docker-compose setup which used `copyparty/ac` (or a Dockerfile which added impacket to it) only needs this change:
+
+```yaml
+services:
+  copyparty:
+    image: ghcr.io/krut-cozclub/copyparty-fork:latest
+    # (remove "build: ." -- the local Dockerfile is no longer needed)
+```
+
+everything else (`user`, `LD_PRELOAD` for mimalloc, volumes, ports, healthcheck) works the same; add `wcmd:` lines to your copyparty.conf to get the `>_` tab, then `docker compose pull && docker compose up -d`
+
+note: `yt-dlp -U` cannot update itself when the container runs as a non-root `user`; pull a newer image instead
+
+
+## updating from upstream
+
+when upstream copyparty makes a new release:
+
+```bash
+git fetch origin                       # origin = 9001/copyparty
+git checkout hovudstraum
+git merge origin/hovudstraum           # fix conflicts if any
+python3 -m unittest discover -s tests  # in linux, ideally with tmux installed
+git push fork hovudstraum
+git tag -a v1.21.0-fork.1 -m "copyparty v1.21.0 + fork features"
+git push fork v1.21.0-fork.1
+gh release create v1.21.0-fork.1 --repo krut-cozclub/copyparty --generate-notes
+```
+
+publishing the release triggers the github action which builds and pushes `ghcr.io/krut-cozclub/copyparty-fork:latest`; then on the server, `docker compose pull && docker compose up -d`
+
+conflicts are most likely in `httpcli.py` and `browser.js`, since those are big files which upstream changes often; the fork's additions there are self-contained blocks (search for `unzip` / `wcmd`)
+
 
 ## tests
 
