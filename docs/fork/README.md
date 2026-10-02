@@ -7,6 +7,8 @@ this fork adds two features to copyparty; neither is in upstream
 * [without docker](#without-docker) -- a single python file, `copyparty-fork-sfx.py`
 * [docker image](#docker-image) -- with tmux, aria2, 7zip, unzip, yt-dlp and ffmpeg preinstalled
 
+for a full walkthrough (docker-compose, cloudflare access login, more users, webdav/rclone, updating), see [setup-guide.md](setup-guide.md)
+
 > **NOTE:** this code was written with an AI assistant, so it must not be submitted upstream; the copyparty [CONTRIBUTING.md](../../CONTRIBUTING.md) does not accept AI-written code. See [upstream-feature-request.md](upstream-feature-request.md) for a draft feature-request instead.
 
 
